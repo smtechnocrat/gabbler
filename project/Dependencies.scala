@@ -2,17 +2,19 @@ import sbt._
 
 object Version {
   val scala     = "2.10.3"
-  val akka      = "2.2.1"
+  val akka      = "2.2.3"
   val logback   = "1.0.13"
-  val scalaTest = "2.0.RC1"
+  val spray     = "1.2.0"
+  val sprayJson = "1.2.5"
 }
 
 object Library {
   val akkaActor      = "com.typesafe.akka" %% "akka-actor"      % Version.akka
   val akkaSlf4j      = "com.typesafe.akka" %% "akka-slf4j"      % Version.akka
-  val akkaTestkit    = "com.typesafe.akka" %% "akka-testkit"    % Version.akka
   val logbackClassic = "ch.qos.logback"    %  "logback-classic" % Version.logback
-  val scalaTest      = "org.scalatest"     %% "scalatest"       % Version.scalaTest
+  val sprayCan       = "io.spray"          %  "spray-can"       % Version.spray
+  val sprayRouting   = "io.spray"          %  "spray-routing"   % Version.spray
+  val sprayJson      = "io.spray"          %% "spray-json"      % Version.sprayJson
 }
 
 object Dependencies {
@@ -20,6 +22,11 @@ object Dependencies {
   import Library._
 
   val gabbler = List(
-    scalaTest % "test"
+    akkaActor,
+    akkaSlf4j,
+    logbackClassic,
+    sprayCan,
+    sprayRouting,
+    sprayJson
   )
 }
