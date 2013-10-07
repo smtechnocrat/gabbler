@@ -16,7 +16,7 @@
 
 package name.heikoseeberger.gabbler
 
-import akka.actor.{ ActorLogging, Props }
+import akka.actor.{ ActorLogging, ActorRef, Props }
 import akka.io.IO
 import spray.can.Http
 import spray.http.StatusCodes
@@ -51,15 +51,18 @@ class GabblerService(hostname: String, port: Int) extends HttpServiceActor with 
     // format: OFF
     authenticate(BasicAuth(UsernameEqualsPasswordAuthenticator, "Gabbler"))(user =>
       path("api" / "messages")(
-        get(context =>
-          log.debug("User '{}' is asking for messages ...", user.username)
-          // TODO Complete this user's request later, when messages are available!
+        get(
+          produce(instanceOf[Seq[Message]]){ completer => _ =>
+            log.debug("User '{}' is asking for messages ...", user.username)
+            gabblerFor(user.username) ! completer
+          }
         ) ~
         post(
           entity(as[Message]) { message =>
             complete {
               log.debug("User '{}' has posted '{}'", user.username, message.text)
-              // TODO Dispatch message to all users!
+              val m = message.copy(username = user.username)
+              context.children foreach (_ ! m)
               StatusCodes.NoContent
             }
           }
@@ -69,4 +72,7 @@ class GabblerService(hostname: String, port: Int) extends HttpServiceActor with 
 
   def staticRoute: Route =
     path("")(getFromResource("web/index.html")) ~ getFromResourceDirectory("web")
+
+  def gabblerFor(username: String): ActorRef =
+    context.child(username) getOrElse context.actorOf(Gabbler.props, username)
 }
