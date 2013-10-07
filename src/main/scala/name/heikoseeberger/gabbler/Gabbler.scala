@@ -18,35 +18,54 @@ package name.heikoseeberger.gabbler
 
 import GabblerService.Message
 import akka.actor.{ Actor, Props }
+import scala.concurrent.duration.FiniteDuration
 
 object Gabbler {
 
   type Completer = Seq[Message] => Unit
 
-  def props: Props =
-    Props(new Gabbler)
+  private case class Timeout(id: Int)
+
+  def props(timeoutDuration: FiniteDuration): Props =
+    Props(new Gabbler(timeoutDuration))
 }
 
-class Gabbler extends Actor {
+final class Gabbler(timeoutDuration: FiniteDuration) extends Actor {
 
   import Gabbler._
+  import context.dispatcher
 
-  var messages: Seq[Message] = Nil
+  def receive: Receive =
+    waiting(scheduleTimeout(Timeout(0)))
 
-  var storedCompleter: Option[Completer] = None
+  def waiting(timeout: Timeout): Receive = {
+    case completer: Completer => context become waitingForMessage(completer, newTimeout(timeout))
+    case message: Message     => context become waitingForCompleter(message +: Nil, timeout)
+    case `timeout`            => context.stop(self)
+  }
 
-  def receive: Receive = {
-    case completer: Completer =>
-      if (messages.isEmpty)
-        storedCompleter = Some(completer)
-      else
-        completer(messages)
-    case message: Message =>
-      messages +:= message
-      for (completer <- storedCompleter) {
-        completer(messages)
-        messages = Nil
-        storedCompleter = None
-      }
+  def waitingForMessage(completer: Completer, timeout: Timeout): Receive = {
+    case completer: Completer => context become waitingForMessage(completer, newTimeout(timeout))
+    case message: Message     => completeAndWait(completer, message +: Nil, timeout)
+    case `timeout`            => completeAndWait(completer, Nil, timeout)
+  }
+
+  def waitingForCompleter(messages: Seq[Message], timeout: Timeout): Receive = {
+    case completer: Completer => completeAndWait(completer, messages, timeout)
+    case message: Message     => context become waitingForCompleter(message +: messages, timeout)
+    case `timeout`            => context.stop(self)
+  }
+
+  private def newTimeout(timeout: Timeout): Timeout =
+    scheduleTimeout(timeout.copy(timeout.id + 1))
+
+  private def scheduleTimeout(timeout: Timeout): Timeout = {
+    context.system.scheduler.scheduleOnce(timeoutDuration, self, timeout)
+    timeout
+  }
+
+  private def completeAndWait(completer: Completer, messages: Seq[Message], timeout: Timeout): Unit = {
+    completer(messages)
+    context become waiting(newTimeout(timeout))
   }
 }

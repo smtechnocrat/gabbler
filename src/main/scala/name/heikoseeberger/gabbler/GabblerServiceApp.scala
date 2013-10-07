@@ -24,7 +24,8 @@ object GabblerServiceApp extends App {
   val system = ActorSystem("gabbler-service-system")
   val hostname = Settings(system).hostname
   val port = Settings(system).port
-  system.actorOf(GabblerService.props(hostname, port), "gabbler-service")
+  val timeout = Settings(system).timeout
+  system.actorOf(GabblerService.props(hostname, port, timeout), "gabbler-service")
 
   readLine(s"Hit ENTER to exit ...$newLine")
   system.shutdown()
